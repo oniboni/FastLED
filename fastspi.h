@@ -16,12 +16,15 @@
 /// writeBytes/writeBytes3 below will ensure that the body of this method will get called on every
 /// byte worked on.  Recommendation, make the adjust method aggressively inlined.
 ///
+/// added postCheck for checksum calculations required by some controllers
+///
 /// TODO: Convinience macro for building these
 class DATA_NOP { 
 public:
 	static __attribute__((always_inline)) inline uint8_t adjust(register uint8_t data) { return data; } 
 	static __attribute__((always_inline)) inline uint8_t adjust(register uint8_t data, register uint8_t scale) { return scale8(data, scale); } 
 	static __attribute__((always_inline)) inline void postBlock(int len) {}
+	static __attribute__((always_inline)) inline uint8_t postCheck(register uint8_t r, register uint8_t g, register uint8_t b) { return NULL;}
 };
 
 #define FLAG_START_BIT 0x80

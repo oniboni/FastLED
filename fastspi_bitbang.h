@@ -285,7 +285,7 @@ public:
 
 	// write a block of uint8_ts out in groups of three.  len is the total number of uint8_ts to write out.  The template
 	// parameters indicate how many uint8_ts to skip at the beginning of each grouping, as well as a class specifying a per
-	// byte of data modification to be made.  (See DATA_NOP above)
+	// byte of data modification or per 3 bytes checksum insertion to be made.  (See DATA_NOP above)
 	template <uint8_t SKIP, class D, EOrder RGB_ORDER> void writeBytes3(register uint8_t *data, int len, register uint8_t scale) { 
 		select();
 
@@ -297,9 +297,13 @@ public:
 			if(SKIP & FLAG_START_BIT) { 
 				writeBit<0>(1);
 			}
-			writeByte(D::adjust(data[SPI_B0], scale));
-			writeByte(D::adjust(data[SPI_B1], scale));
-			writeByte(D::adjust(data[SPI_B2], scale));
+			uint8_t b0 = D::adjust(data[SPI_B0], scale),
+					b1 = D::adjust(data[SPI_B1], scale),
+					b2 = D::adjust(data[SPI_B2], scale);
+			if(uint8_t check = D::postCheck(b0, b1, b2) != NULL) writeByte(check);
+			writeByte(b0);
+			writeByte(b1);
+			writeByte(b2);
 			data += SPI_ADVANCE;
 		}
 #else
@@ -321,9 +325,13 @@ public:
 				if(SKIP & FLAG_START_BIT) { 
 					writeBit<0>(1, clockpin, datapin, datahi, datalo, clockhi, clocklo);
 				}
-				writeByte(D::adjust(data[SPI_B0], scale), clockpin, datapin, datahi, datalo, clockhi, clocklo);
-				writeByte(D::adjust(data[SPI_B1], scale), clockpin, datapin, datahi, datalo, clockhi, clocklo);
-				writeByte(D::adjust(data[SPI_B2], scale), clockpin, datapin, datahi, datalo, clockhi, clocklo);
+				uint8_t b0 = D::adjust(data[SPI_B0], scale),
+										b1 = D::adjust(data[SPI_B1], scale),
+										b2 = D::adjust(data[SPI_B2], scale);
+				if(uint8_t check = D::postCheck(b0, b1, b2) != NULL) writeByte(check, clockpin, datapin, datahi, datalo, clockhi, clocklo);
+				writeByte(b0, clockpin, datapin, datahi, datalo, clockhi, clocklo);
+				writeByte(b1, clockpin, datapin, datahi, datalo, clockhi, clocklo);
+				writeByte(b2, clockpin, datapin, datahi, datalo, clockhi, clocklo);
 				data += SPI_ADVANCE;
 			}
 
@@ -340,9 +348,13 @@ public:
 				if(SKIP & FLAG_START_BIT) { 
 					writeBit<0>(1, datapin, datahi_clockhi, datalo_clockhi, datahi_clocklo, datalo_clocklo);
 				}
-				writeByte(D::adjust(data[SPI_B0], scale), datapin, datahi_clockhi, datalo_clockhi, datahi_clocklo, datalo_clocklo);
-				writeByte(D::adjust(data[SPI_B1], scale), datapin, datahi_clockhi, datalo_clockhi, datahi_clocklo, datalo_clocklo);
-				writeByte(D::adjust(data[SPI_B2], scale), datapin, datahi_clockhi, datalo_clockhi, datahi_clocklo, datalo_clocklo);
+				uint8_t b0 = D::adjust(data[SPI_B0], scale),
+						b1 = D::adjust(data[SPI_B1], scale),
+						b2 = D::adjust(data[SPI_B2], scale);
+				if(uint8_t check = D::postCheck(b0, b1, b2) != NULL) writeByte(check, datapin, datahi_clockhi, datalo_clockhi, datahi_clocklo, datalo_clocklo);
+				writeByte(b0, datapin, datahi_clockhi, datalo_clockhi, datahi_clocklo, datalo_clocklo);
+				writeByte(b1, datapin, datahi_clockhi, datalo_clockhi, datahi_clocklo, datalo_clocklo);
+				writeByte(b2, datapin, datahi_clockhi, datalo_clockhi, datahi_clocklo, datalo_clocklo);
 				data += SPI_ADVANCE;
 			}
 		}	

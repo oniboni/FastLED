@@ -13,7 +13,7 @@ template <uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER = RGB,  uint8_t 
 class LPD8806Controller : public CLEDController {
 	typedef SPIOutput<DATA_PIN, CLOCK_PIN, SPI_SPEED> SPI;
 
-	class LPD8806_ADJUST {
+	class LPD8806_ADJUST : public DATA_NOP {
 	public:
 		// LPD8806 spec wants the high bit of every rgb data byte sent out to be set.
 		__attribute__((always_inline)) inline static uint8_t adjust(register uint8_t data) { return (data>>1) | 0x80; }
@@ -215,6 +215,107 @@ public:
 		// of each triplet of bytes for rgb data
 		mSPI.template writeBytes3<1 | FLAG_START_BIT, RGB_ORDER>((byte*)data, nLeds * 4, scale);
 	}
+#endif
+};
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// P9813 definition - takes data/clock pin values (N.B. should take an SPI definition?)
+//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template <uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER = RGB, uint8_t SPI_SPEED = DATA_RATE_MHZ(8)>
+class P9813Controller : public CLEDController {
+	typedef SPIOutput<DATA_PIN, CLOCK_PIN, SPI_SPEED> SPI;
+	SPI mSPI;
+
+	class P9813_CKSUM : public DATA_NOP {
+	public:
+		static __attribute__((always_inline)) inline uint8_t postCheck(register uint8_t r, register uint8_t g, register uint8_t b) {
+			//inverse grey data with leading 11
+			byte verify = B11000000;
+
+			if ((r & 0x80) == 0) verify |= B00100000;
+			if ((r & 0x40) == 0) verify |= B00010000;
+			if ((g & 0x80) == 0) verify |= B00001000;
+			if ((g & 0x40) == 0) verify |= B00000100;
+			if ((b & 0x80) == 0) verify |= B00000010;
+			if ((b & 0x40) == 0) verify |= B00000001;
+
+			return verify;
+		}
+	};
+
+	void writeHeader() { 
+		// Initiate new data frame with empty frame 
+		for ( int i = 0; i < 4; i++) mSPI.writeByte(0);
+	}
+
+	void writeColor(uint8_t r, uint8_t g, uint8_t b) {
+		mSPI.writeByte(P9813_CKSUM::postCheck(r,g,b));
+		mSPI.writeByte(r);
+		mSPI.writeByte(g);
+		mSPI.writeByte(b);
+	}
+
+public:
+	P9813Controller() {
+	}
+
+	virtual void init() { 
+		mSPI.init();
+	}
+
+	virtual void clearLeds(int nLeds) { 
+		mSPI.select();
+		writeHeader();
+		while(nLeds--) { 
+			writeColor(0,0,0);
+		}
+		mSPI.waitFully();
+		mSPI.release();
+	}
+
+	virtual void showColor(const struct CRGB & data, int nLeds, uint8_t scale = 255) {
+		mSPI.select();
+		uint8_t a = scale8(data[RGB_BYTE0(RGB_ORDER)], scale);
+		uint8_t b = scale8(data[RGB_BYTE1(RGB_ORDER)], scale);
+		uint8_t c = scale8(data[RGB_BYTE2(RGB_ORDER)], scale);
+		writeHeader();
+		while(nLeds--) { 
+			writeColor(a,b,c);
+		}
+		mSPI.waitFully();
+		mSPI.release();
+	}
+
+	virtual void show(const struct CRGB *data, int nLeds, uint8_t scale = 255) {
+		mSPI.select();
+		writeHeader();
+		//mSPI.template writeBytes3<P9813_CKSUM, RGB_ORDER>((byte*)data, nLeds * 3, scale);
+		uint8_t a,b,c,i;
+
+		for(i = 0; i < nLeds; i++) {
+			CRGB color = data[i];
+
+			a = scale8(color[RGB_BYTE0(RGB_ORDER)], scale);
+			b = scale8(color[RGB_BYTE1(RGB_ORDER)], scale);
+			c = scale8(color[RGB_BYTE2(RGB_ORDER)], scale);
+
+			writeColor(a,b,c);
+
+		}
+		mSPI.waitFully();
+		mSPI.release();
+
+	}
+
+#ifdef SUPPORT_ARGB
+	//not supported
+	virtual void show(const struct CARGB *data, int nLeds, uint8_t scale = 255) {
+	writeHeader();
+	mSPI.template writeBytes3<P9813_CKSUM, RGB_ORDER>((byte*)data, nLeds * 4, scale);
+}
 #endif
 };
 
